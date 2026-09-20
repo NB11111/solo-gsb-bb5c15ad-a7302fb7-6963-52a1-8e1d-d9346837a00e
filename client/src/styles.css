@@ -1204,6 +1204,186 @@ fieldset.inspector:disabled {
   box-shadow: 0 0 0 4px rgb(124 58 237 / 20%), 0 14px 30px rgb(76 29 149 / 22%);
 }
 
+/* ---------- 必经链路分析 ---------- */
+
+.bottleneck-card {
+  border-color: #fcd34d;
+}
+
+.bottleneck-result {
+  margin-top: 10px;
+  display: grid;
+  gap: 10px;
+}
+
+.bottleneck-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.bottleneck-item {
+  width: 100%;
+  display: grid;
+  gap: 4px;
+  padding: 8px 10px;
+  text-align: left;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fff;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.bottleneck-item:hover {
+  border-color: #f59e0b;
+  background: #fffbeb;
+}
+
+.bottleneck-item:focus-visible {
+  outline: 2px solid #d97706;
+  outline-offset: 1px;
+}
+
+.bottleneck-item.active {
+  border-color: #d97706;
+  border-width: 2px;
+  padding: 7px 9px;
+  background: #fef3c7;
+  box-shadow: 0 0 0 3px rgb(217 119 6 / 16%);
+}
+
+.bottleneck-item-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.bottleneck-tag {
+  flex: none;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.bottleneck-tag-node {
+  color: #78350f;
+  background: #fde68a;
+}
+
+.bottleneck-tag-edge {
+  color: #7c2d12;
+  background: #fed7aa;
+}
+
+.bottleneck-element {
+  font-size: 13px;
+  color: #1e293b;
+  word-break: break-word;
+}
+
+.bottleneck-element small {
+  font-weight: 400;
+  color: #64748b;
+}
+
+.bottleneck-count {
+  margin-left: auto;
+  flex: none;
+  font-size: 11px;
+  font-weight: 700;
+  color: #92400e;
+  background: #fef3c7;
+  border: 1px solid #fcd34d;
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+
+.bottleneck-coverage {
+  color: #475569;
+  font-size: 12px;
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.bottleneck-unreachable {
+  display: grid;
+  gap: 6px;
+  padding: 8px 10px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 10px;
+  background: #f8fafc;
+  font-size: 12.5px;
+  color: #475569;
+}
+
+.bottleneck-unreachable-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.bottleneck-unreachable-chip {
+  padding: 1px 9px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  color: #334155;
+  font-size: 12px;
+}
+
+/* 画布上的必经瓶颈高亮：琥珀色系，区别于靛蓝的路径追踪与紫色的分摊高亮。 */
+.argument-node.in-bottleneck {
+  border-color: #f59e0b;
+  box-shadow: 0 0 0 3px rgb(245 158 11 / 15%), 0 12px 26px rgb(30 41 59 / 16%);
+}
+
+.argument-node.bottleneck-node {
+  border-color: #d97706;
+  border-width: 3px;
+  box-shadow: 0 0 0 4px rgb(217 119 6 / 22%), 0 14px 30px rgb(120 53 15 / 20%);
+}
+
+.argument-node.bottleneck-target {
+  border-color: #0891b2;
+  box-shadow: 0 0 0 4px rgb(8 145 178 / 18%), 0 12px 26px rgb(30 41 59 / 18%);
+}
+
+.argument-node.bottleneck-evidence {
+  border-color: #f59e0b;
+  box-shadow: 0 0 0 3px rgb(245 158 11 / 18%), 0 12px 26px rgb(30 41 59 / 16%);
+}
+
+.bottleneck-badge-node {
+  color: #78350f;
+  background: #fcd34d;
+}
+
+.bottleneck-badge-target {
+  color: #155e75;
+  background: #a5f3fc;
+}
+
+.bottleneck-badge-evidence {
+  color: #92400e;
+  background: #fde68a;
+}
+
+.react-flow__edge.bottleneck-edge .react-flow__edge-path {
+  stroke: #f59e0b;
+  stroke-width: 3.4;
+  filter: drop-shadow(0 0 4px rgb(245 158 11 / 40%));
+}
+
+.react-flow__edge.bottleneck-active-edge .react-flow__edge-path {
+  stroke: #d97706;
+  stroke-width: 4.5;
+  filter: drop-shadow(0 0 6px rgb(217 119 6 / 55%));
+}
+
 @media (max-width: 980px) {
   .topbar {
     align-items: flex-start;

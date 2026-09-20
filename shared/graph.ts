@@ -259,3 +259,56 @@ export interface ShapleyRequest {
   evidenceNodeIds: string[];
   options?: PropagateOptions;
 }
+
+/** 必经链路瓶颈的元素类型：节点或连线 */
+export type BottleneckElementKind = 'node' | 'edge';
+
+/**
+ * 一个“必经瓶颈”：对 coveredEvidenceIds 中的每个证据，
+ * 该节点（或连线）都出现在从该证据到目标观点的**全部**有向路径上。
+ * 证据自身与目标节点不会作为节点瓶颈出现。
+ */
+export interface BottleneckItem {
+  /** 瓶颈类型：节点 / 连线 */
+  kind: BottleneckElementKind;
+  /** kind=node 时的瓶颈节点 id */
+  nodeId: string | null;
+  /** kind=edge 时的瓶颈连线 id */
+  edgeId: string | null;
+  /** kind=edge 时连线的起点 id */
+  sourceId: string | null;
+  /** kind=edge 时连线的终点 id */
+  edgeTargetId: string | null;
+  /** kind=edge 时连线的支持 / 反驳关系（仅用于展示） */
+  stance: Stance | null;
+  /** kind=edge 时连线权重（仅用于展示） */
+  weight: number | null;
+  /** 被该瓶颈覆盖（所有到目标路径都必经此元素）的证据节点 id，按 id 升序 */
+  coveredEvidenceIds: string[];
+  /** 覆盖证据数（排序第一依据） */
+  coveredCount: number;
+}
+
+export interface BottleneckResult {
+  /** 目标观点节点 id */
+  targetNodeId: string;
+  /** 图中全部证据节点数 */
+  evidenceCount: number;
+  /** 能沿有向边到达目标的证据数 */
+  reachableEvidenceCount: number;
+  /**
+   * 必经瓶颈列表，按覆盖证据数降序、节点优先于连线、id 升序稳定排列。
+   * 计算基于支配关系（dominator），对含环图精确成立，不枚举任何有限路径集合。
+   */
+  items: BottleneckItem[];
+  /** 无法沿有向边到达目标的证据节点 id，按 id 升序 */
+  unreachableEvidenceIds: string[];
+  message: string;
+}
+
+export interface BottleneckRequest {
+  /** 画布当前图：仅在内存中用于本次分析，不会被保存或持久化 */
+  graph: GraphDocument;
+  /** 目标观点节点 id（kind 必须为 claim） */
+  targetNodeId: string;
+}

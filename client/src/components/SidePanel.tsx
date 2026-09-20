@@ -4,6 +4,7 @@ import type { RoundDecomposition } from '../replay';
 import { SensitivityChart } from './SensitivityChart';
 import { ShapleyWaterfall } from './ShapleyWaterfall';
 import type {
+  BottleneckResult,
   GraphDocument,
   NodeKind,
   PathSign,
@@ -34,6 +35,10 @@ export interface TraceSelection {
 export interface ShapleySelection {
   claimNodeId: string;
   evidenceNodeIds: string[];
+}
+
+export interface BottleneckSelection {
+  targetNodeId: string;
 }
 
 interface SidePanelProps {
@@ -81,6 +86,18 @@ interface SidePanelProps {
     /** 画布上当前高亮的证据节点（点击瀑布条切换） */
     activeNodeId: string | null;
     onToggleNode: (nodeId: string) => void;
+    onRun: () => void;
+    onClose: () => void;
+  };
+  bottleneck: {
+    selection: BottleneckSelection;
+    onSelectionChange: (patch: Partial<BottleneckSelection>) => void;
+    result: BottleneckResult | null;
+    running: boolean;
+    status: string;
+    /** 当前点击高亮的瓶颈项 key（kind:id），null 表示无高亮 */
+    activeKey: string | null;
+    onToggleItem: (key: string) => void;
     onRun: () => void;
     onClose: () => void;
   };
@@ -219,6 +236,7 @@ export function SidePanel({
   sensitivity,
   trace,
   shapley,
+  bottleneck,
   nodes,
   edges
 }: SidePanelProps) {
@@ -355,6 +373,8 @@ export function SidePanel({
       <TraceCard trace={trace} nodes={nodes} nodeLabelById={nodeLabelById} stanceText={stanceText} />
 
       <ShapleyCard shapley={shapley} nodes={nodes} nodeLabelById={nodeLabelById} />
+
+      <BottleneckCard bottleneck={bottleneck} nodes={nodes} nodeLabelById={nodeLabelById} stanceText={stanceText} />
 
       {decomposition && selection.node && <DecompositionCard decomposition={decomposition} />}
 
@@ -753,6 +773,143 @@ function ShapleyCard({ shapley, nodes, nodeLabelById }: ShapleyCardProps) {
             {signed(result.sumCheck.expected, 6)} 相差 {result.sumCheck.difference.toExponential(2)}，
             {result.sumCheck.matches ? '一致' : '不一致'}
           </p>
+        </div>
+      )}
+    </section>
+  );
+}
+
+type BottleneckCardProps = Pick<SidePanelProps, 'bottleneck' | 'nodes'> & {
+  nodeLabelById: Map<string, string>;
+  stanceText: (stance: Stance) => string;
+};
+
+const itemKey = (kind: 'node' | 'edge', id: string) => `${kind}:${id}`;
+
+/** 必经链路分析卡片：选择目标观点后，列出每个能到达目标的证据到目标的所有路径共同经过的节点与连线。 */
+function BottleneckCard({ bottleneck, nodes, nodeLabelById, stanceText }: BottleneckCardProps) {
+  const { selection, onSelectionChange, result, running, status, activeKey, onToggleItem, onRun, onClose } =
+    bottleneck;
+  const claimNodes = nodes.filter((node) => node.data.kind === 'claim');
+  const targetExists = claimNodes.some((node) => node.id === selection.targetNodeId);
+  const canRun = targetExists;
+
+  const labelOf = (id: string | null) => (id ? nodeLabelById.get(id) ?? id : '');
+
+  return (
+    <section className="panel-card bottleneck-card">
+      <div className="sensitivity-heading">
+        <h2>必经链路分析</h2>
+        {result && (
+          <button type="button" className="sensitivity-close" onClick={onClose} title="关闭分析结果">
+            ✕
+          </button>
+        )}
+      </div>
+
+      {claimNodes.length === 0 ? (
+        <p className="hint">先创建至少一个观点节点作为目标，并添加证据与连线，才能分析必经链路。</p>
+      ) : (
+        <>
+          <Field label="目标观点（分析各证据到该观点的必经节点 / 连线）">
+            <select
+              value={targetExists ? selection.targetNodeId : ''}
+              onChange={(event) => onSelectionChange({ targetNodeId: event.target.value })}
+            >
+              {!targetExists && <option value="">请选择观点节点…</option>}
+              {claimNodes.map((node) => (
+                <option key={node.id} value={node.id}>
+                  {node.data.label}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <button
+            type="button"
+            className="primary sensitivity-run"
+            disabled={!canRun || running}
+            onClick={onRun}
+          >
+            {running ? '分析中…' : '运行必经链路分析'}
+          </button>
+          <p className="hint">
+            服务端在反向图上按支配关系一次性精确计算所有证据到目标的共同必经元素，正确处理有向环（不枚举有限路径近似）；只在内存中分析，不会保存或改动当前图。
+          </p>
+          {status && <p className="sensitivity-status">{status}</p>}
+        </>
+      )}
+
+      {result && (
+        <div className="bottleneck-result">
+          <p className="hint">{result.message}</p>
+
+          {result.items.length === 0 ? (
+            <p className="hint">
+              {result.reachableEvidenceCount > 0
+                ? '可达证据之间没有共同必经的节点或连线（每条元素都存在可绕行的替代路径）。'
+                : '没有可分析的必经链路。'}
+            </p>
+          ) : (
+            <ul className="bottleneck-list">
+              {result.items.map((item) => {
+                const id = item.nodeId ?? item.edgeId ?? '';
+                const key = itemKey(item.kind, id);
+                const active = key === activeKey;
+                return (
+                  <li key={key}>
+                    <button
+                      type="button"
+                      className={`bottleneck-item ${active ? 'active' : ''} bottleneck-kind-${item.kind}`}
+                      onClick={() => onToggleItem(key)}
+                      aria-pressed={active}
+                      title={
+                        item.kind === 'node'
+                          ? `点击高亮必经节点、目标与它覆盖的 ${item.coveredCount} 个证据`
+                          : `点击高亮必经连线、目标与它覆盖的 ${item.coveredCount} 个证据`
+                      }
+                    >
+                      <span className="bottleneck-item-head">
+                        <span className={`bottleneck-tag bottleneck-tag-${item.kind}`}>
+                          {item.kind === 'node' ? '必经节点' : '必经连线'}
+                        </span>
+                        <strong className="bottleneck-element">
+                          {item.kind === 'node' ? (
+                            labelOf(item.nodeId)
+                          ) : (
+                            <>
+                              {labelOf(item.sourceId)} {stanceText(item.stance ?? 'support')}→{' '}
+                              {labelOf(item.edgeTargetId)}
+                              {item.weight !== null && <small>（{Math.round(item.weight * 100)}%）</small>}
+                            </>
+                          )}
+                        </strong>
+                        <span className="bottleneck-count" title="该瓶颈覆盖的证据数">
+                          覆盖 {item.coveredCount}
+                        </span>
+                      </span>
+                      <small className="bottleneck-coverage">
+                        覆盖证据：
+                        {item.coveredEvidenceIds.length === 0 ? '—' : item.coveredEvidenceIds.map(labelOf).join('、')}
+                      </small>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+
+          {result.unreachableEvidenceIds.length > 0 && (
+            <div className="bottleneck-unreachable">
+              <strong>无法到达目标的证据（{result.unreachableEvidenceIds.length}）</strong>
+              <div className="bottleneck-unreachable-list">
+                {result.unreachableEvidenceIds.map((id) => (
+                  <span key={id} className="bottleneck-unreachable-chip">
+                    {nodeLabelById.get(id) ?? id}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </section>

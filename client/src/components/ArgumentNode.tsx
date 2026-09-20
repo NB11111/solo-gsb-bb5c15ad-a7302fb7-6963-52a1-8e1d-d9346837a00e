@@ -24,6 +24,14 @@ export interface ArgumentNodeData {
   traceTarget?: boolean;
   /** 证据贡献分摊中被点击高亮的证据节点 */
   shapleyFocus?: boolean;
+  /** 位于当前高亮的必经瓶颈范围内（瓶颈节点 / 覆盖证据 / 目标） */
+  inBottleneck?: boolean;
+  /** 当前高亮的必经节点瓶颈本身 */
+  bottleneckNode?: boolean;
+  /** 必经链路分析的目标观点 */
+  bottleneckTarget?: boolean;
+  /** 被当前瓶颈覆盖的证据节点 */
+  bottleneckEvidence?: boolean;
   [key: string]: unknown;
 }
 
@@ -56,6 +64,10 @@ export function ArgumentNode({ id, data, selected }: NodeProps<ArgumentNodeData>
         data.traceStart ? 'trace-start' : '',
         data.traceTarget ? 'trace-target' : '',
         data.shapleyFocus ? 'shapley-focus' : '',
+        data.inBottleneck ? 'in-bottleneck' : '',
+        data.bottleneckNode ? 'bottleneck-node' : '',
+        data.bottleneckTarget ? 'bottleneck-target' : '',
+        data.bottleneckEvidence ? 'bottleneck-evidence' : '',
         data.anchored ? 'anchored' : '',
         data.positionLocked ? 'position-locked' : '',
         data.layoutPreview ? 'layout-preview-node' : ''
@@ -74,6 +86,21 @@ export function ArgumentNode({ id, data, selected }: NodeProps<ArgumentNodeData>
           {data.traceTarget && (
             <span className="trace-badge trace-badge-target" title="影响路径追踪目标">
               目标
+            </span>
+          )}
+          {data.bottleneckNode && (
+            <span className="trace-badge bottleneck-badge-node" title="该节点是所选瓶颈：覆盖证据到目标的所有路径都必经此节点">
+              必经节点
+            </span>
+          )}
+          {data.bottleneckTarget && !data.bottleneckNode && (
+            <span className="trace-badge bottleneck-badge-target" title="必经链路分析的目标观点">
+              目标
+            </span>
+          )}
+          {data.bottleneckEvidence && (
+            <span className="trace-badge bottleneck-badge-evidence" title="被该瓶颈覆盖的证据：其到目标的每条路径都经过该瓶颈">
+              覆盖证据
             </span>
           )}
           {data.anchored && (
