@@ -1,0 +1,26 @@
+services:
+  argument-sandbox:
+    build: .
+    image: argument-stability-sandbox:latest
+    container_name: argument-stability-sandbox
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    environment:
+      PORT: 8080
+      DATABASE_PATH: /app/data/argument.db
+    volumes:
+      - argument-sqlite-data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:8080/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+
+volumes:
+  argument-sqlite-data:
