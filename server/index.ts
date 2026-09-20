@@ -12,6 +12,7 @@ import {
 } from './sensitivity.js';
 import { traceInfluencePaths, validateMaxHops, validateTraceSelection } from './trace.js';
 import { computeEvidenceShapley, validateShapleySelection } from './shapley.js';
+import { analyzeMandatoryLinks, validateBottleneckSelection } from './bottleneck.js';
 
 const currentDir = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(currentDir, '../..');
@@ -115,6 +116,22 @@ app.post('/api/shapley/evidence-contribution', (request, response) => {
     response.json({ shapley });
   } catch (error) {
     response.status(400).json({ error: error instanceof Error ? error.message : '证据贡献分摊请求无效。' });
+  }
+});
+
+// 必经链路分析：使用请求体携带的当前画布图，在内存中按「删除后不可达」精确计算瓶颈（天然处理环），绝不保存或修改持久化图。
+app.post('/api/bottleneck/mandatory-links', (request, response) => {
+  try {
+    const candidate = request.body?.graph;
+    if (candidate === undefined || candidate === null) {
+      throw new Error('请求体必须携带当前图 graph（分析不会保存该图）。');
+    }
+    const graph = validateGraphDocument(candidate);
+    validateBottleneckSelection(graph, request.body?.targetNodeId);
+    const analysis = analyzeMandatoryLinks(graph, request.body.targetNodeId);
+    response.json({ analysis });
+  } catch (error) {
+    response.status(400).json({ error: error instanceof Error ? error.message : '必经链路分析请求无效。' });
   }
 });
 

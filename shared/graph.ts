@@ -259,3 +259,37 @@ export interface ShapleyRequest {
   evidenceNodeIds: string[];
   options?: PropagateOptions;
 }
+
+/** 必经链路分析中的瓶颈种类：节点或连线 */
+export type BottleneckKind = 'node' | 'edge';
+
+/** 单个瓶颈：某个节点或某条连线被一组证据到目标的所有有向路径共同经过 */
+export interface BottleneckItem {
+  /** 瓶颈种类：节点 / 连线 */
+  kind: BottleneckKind;
+  /** 节点 id 或连线 id */
+  id: string;
+  /** 覆盖的证据节点 id：这些证据到目标的所有有向路径都经过该瓶颈，按 id 升序 */
+  coveredEvidenceIds: string[];
+  /** 覆盖证据数量（首要排序依据，与 coveredEvidenceIds.length 一致） */
+  coveredCount: number;
+}
+
+export interface BottleneckResult {
+  /** 目标观点节点 id */
+  targetNodeId: string;
+  /** 能沿有向边到达目标的证据节点 id（按 id 升序） */
+  reachableEvidenceIds: string[];
+  /** 无法到达目标的证据节点 id（按 id 升序），另列展示 */
+  unreachableEvidenceIds: string[];
+  /** 瓶颈列表：覆盖证据数降序 → 节点优先于连线 → id 升序，结果稳定 */
+  bottlenecks: BottleneckItem[];
+  message: string;
+}
+
+export interface BottleneckRequest {
+  /** 画布当前图：仅在内存中用于本次分析，不会被保存或持久化 */
+  graph: GraphDocument;
+  /** 目标观点节点 id（kind 必须为 claim） */
+  targetNodeId: string;
+}

@@ -1204,6 +1204,165 @@ fieldset.inspector:disabled {
   box-shadow: 0 0 0 4px rgb(124 58 237 / 20%), 0 14px 30px rgb(76 29 149 / 22%);
 }
 
+/* ---------- 必经链路分析 ---------- */
+
+.bottleneck-card {
+  border-color: #fcd34d;
+}
+
+.bottleneck-result {
+  margin-top: 10px;
+}
+
+.bottleneck-list {
+  display: grid;
+  gap: 8px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bottleneck-item {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+  padding: 9px 10px;
+  border: 1px solid #fde68a;
+  border-radius: 10px;
+  background: #fff;
+  text-align: left;
+  box-shadow: none;
+}
+
+.bottleneck-item:hover:not(:disabled) {
+  border-color: #f59e0b;
+  background: #fffbeb;
+}
+
+.bottleneck-item.active {
+  border-color: #d97706;
+  border-width: 2px;
+  padding: 8px 9px;
+  background: #fffbeb;
+  box-shadow: 0 0 0 3px rgb(217 119 6 / 14%);
+}
+
+.bottleneck-item-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+}
+
+.bottleneck-kind {
+  flex: none;
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.bottleneck-kind.node {
+  color: #92400e;
+  background: #fef3c7;
+}
+
+.bottleneck-kind.edge {
+  color: #1e40af;
+  background: #dbeafe;
+}
+
+.bottleneck-label {
+  min-width: 0;
+  color: #1e293b;
+  font-size: 12.5px;
+  word-break: break-word;
+}
+
+.bottleneck-count {
+  flex: none;
+  margin-left: auto;
+  color: #b45309;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.bottleneck-covered {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.bottleneck-chip {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 6px;
+  color: #166534;
+  background: #dcfce7;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.bottleneck-chip.muted {
+  color: #64748b;
+  background: #e2e8f0;
+}
+
+.bottleneck-unreachable {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+  padding: 9px 11px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 10px;
+  color: #475569;
+  background: #f8fafc;
+  font-size: 12px;
+}
+
+/* 画布高亮：瓶颈节点（琥珀）、目标观点（靛蓝）、被覆盖证据（绿色描边）。 */
+.argument-node.bottleneck-focus {
+  border-color: #d97706;
+  box-shadow: 0 0 0 4px rgb(217 119 6 / 22%), 0 14px 30px rgb(120 53 15 / 24%);
+}
+
+.argument-node.bottleneck-target {
+  border-color: #4f46e5;
+  border-width: 3px;
+  box-shadow: 0 0 0 4px rgb(79 70 229 / 20%), 0 14px 30px rgb(30 41 59 / 22%);
+}
+
+.argument-node.bottleneck-covered {
+  border-color: #16a34a;
+  box-shadow: 0 0 0 3px rgb(22 163 74 / 18%), 0 12px 26px rgb(30 41 59 / 18%);
+}
+
+.bottleneck-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.bottleneck-badge-focus {
+  color: #92400e;
+  background: #fde68a;
+}
+
+.bottleneck-badge-target {
+  color: #312e81;
+  background: #c7d2fe;
+}
+
+.react-flow__edge.bottleneck-edge .react-flow__edge-path {
+  stroke: #d97706;
+  stroke-width: 4.5;
+  filter: drop-shadow(0 0 6px rgb(217 119 6 / 50%));
+}
+
 @media (max-width: 980px) {
   .topbar {
     align-items: flex-start;

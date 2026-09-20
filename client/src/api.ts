@@ -1,4 +1,5 @@
 import type {
+  BottleneckResult,
   GraphDocument,
   PropagateOptions,
   PropagateResult,
@@ -59,6 +60,12 @@ export const api = {
     options: PropagateOptions;
   }) =>
     request<{ shapley: ShapleyResult }>('/api/shapley/evidence-contribution', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    }),
+  /** 必经链路分析：提交当前画布图，按「删除后不可达」精确计算瓶颈及其覆盖证据，仅在服务端内存中计算，不会保存图。 */
+  bottleneckAnalysis: (payload: { graph: GraphDocument; targetNodeId: string }) =>
+    request<{ analysis: BottleneckResult }>('/api/bottleneck/mandatory-links', {
       method: 'POST',
       body: JSON.stringify(payload)
     })

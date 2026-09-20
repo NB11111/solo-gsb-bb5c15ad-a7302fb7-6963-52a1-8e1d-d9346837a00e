@@ -17,6 +17,7 @@ import { ArgumentNode, nodeTypes, type ArgumentNodeData } from './components/Arg
 import {
   SidePanel,
   graphToDocument,
+  type BottleneckSelection,
   type SensitivitySelection,
   type ShapleySelection,
   type TraceSelection
@@ -25,6 +26,8 @@ import { ReplayBar } from './components/ReplayBar';
 import { buildRoundDecomposition } from './replay';
 import { planGraphLayout, formatDisplacement, type LayoutResult } from './layout';
 import type {
+  BottleneckItem,
+  BottleneckResult,
   GraphDocument,
   GraphNode,
   GraphEdge,
@@ -41,8 +44,9 @@ import { stableSample, oscillatingSample } from './samples';
 const DEFAULT_OPTIONS: PropagateOptions = { threshold: 0.001, maxIterations: 200, lambda: 0.8 };
 const DEFAULT_TRACE_SELECTION: TraceSelection = { startNodeId: '', targetNodeId: '', maxHops: 8 };
 const DEFAULT_SHAPLEY_SELECTION: ShapleySelection = { claimNodeId: '', evidenceNodeIds: [] };
+const DEFAULT_BOTTLENECK_SELECTION: BottleneckSelection = { targetNodeId: '' };
 
-type EdgeDecorMode = 'plain' | 'cycle' | 'trace-active';
+type EdgeDecorMode = 'plain' | 'cycle' | 'trace-active' | 'bottleneck-active';
 
 const documentToFlow = (graph: GraphDocument): { nodes: Node<ArgumentNodeData>[]; edges: Edge[] } => ({
   nodes: graph.nodes.map((node) => ({
@@ -79,7 +83,7 @@ function makeEdge(edge: GraphEdge): Edge {
   };
 }
 
-/** 按当前分析视图重绘连线：追踪优先于负反馈环；选中路径加粗动画，候选路径细线高亮。 */
+/** 按当前分析视图重绘连线：必经瓶颈优先于追踪，追踪优先于负反馈环；选中路径/瓶颈加粗动画。 */
 function decorateEdge(
   edge: Edge,
   mode: EdgeDecorMode,
@@ -91,7 +95,8 @@ function decorateEdge(
   const className = [
     `stance-${stance}`,
     mode === 'cycle' ? 'cycle-edge' : '',
-    mode === 'trace-active' ? 'trace-path-edge trace-active-edge' : ''
+    mode === 'trace-active' ? 'trace-path-edge trace-active-edge' : '',
+    mode === 'bottleneck-active' ? 'bottleneck-edge' : ''
   ]
     .filter(Boolean)
     .join(' ');
@@ -102,8 +107,8 @@ function decorateEdge(
         ? `${baseLabel} · 累计 ${activeRunningScore >= 0 ? '+' : ''}${activeRunningScore.toFixed(2)}`
         : baseLabel,
     className,
-    animated: mode === 'cycle' || mode === 'trace-active',
-    style: mode === 'plain' ? undefined : { strokeWidth: mode === 'trace-active' ? 4.5 : 3.4 },
+    animated: mode !== 'plain',
+    style: mode === 'plain' ? undefined : { strokeWidth: mode === 'cycle' ? 3.4 : 4.5 },
     markerEnd: { type: MarkerType.ArrowClosed }
   };
 }
@@ -166,6 +171,11 @@ export default function App() {
   const [shapleyRunning, setShapleyRunning] = useState(false);
   const [shapleyStatus, setShapleyStatus] = useState('');
   const [shapleyActiveId, setShapleyActiveId] = useState<string | null>(null);
+  const [bottleneckSelection, setBottleneckSelection] = useState<BottleneckSelection>(DEFAULT_BOTTLENECK_SELECTION);
+  const [bottleneckResult, setBottleneckResult] = useState<BottleneckResult | null>(null);
+  const [bottleneckRunning, setBottleneckRunning] = useState(false);
+  const [bottleneckStatus, setBottleneckStatus] = useState('');
+  const [bottleneckActiveKey, setBottleneckActiveKey] = useState<string | null>(null);
   const [layoutPreview, setLayoutPreview] = useState<LayoutPreview | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const saveTimerRef = useRef<number | null>(null);
@@ -233,6 +243,13 @@ export default function App() {
     setShapleyResult(null);
     setShapleyStatus('');
     setShapleyActiveId(null);
+  }, []);
+
+  // 图编辑或目标变化都会使必经链路分析失效（瓶颈集合与覆盖关系都可能变化）。
+  const invalidateBottleneck = useCallback(() => {
+    setBottleneckResult(null);
+    setBottleneckStatus('');
+    setBottleneckActiveKey(null);
   }, []);
 
   // 还原画布到进入预览前的坐标，并清掉预览标记（纯视图回退，不保存、不写 SQLite）。
@@ -321,6 +338,7 @@ export default function App() {
       invalidateSensitivity();
       invalidateTrace();
       invalidateShapley();
+      invalidateBottleneck();
       setNodes(
         nextNodes.map((node) => ({
           ...node,
@@ -332,13 +350,16 @@ export default function App() {
             inTrace: false,
             traceStart: false,
             traceTarget: false,
-            shapleyFocus: false
+            shapleyFocus: false,
+            bottleneckFocus: false,
+            bottleneckTarget: false,
+            bottleneckCovered: false
           }
         }))
       );
       setEdges(nextEdges.map((edge) => decorateEdge({ ...edge, animated: false, style: undefined }, 'plain')));
     },
-    [edges, nodes, setEdges, setNodes, invalidateSensitivity, invalidateTrace, invalidateShapley]
+    [edges, nodes, setEdges, setNodes, invalidateSensitivity, invalidateTrace, invalidateShapley, invalidateBottleneck]
   );
 
   const onConnect = useCallback(
@@ -531,6 +552,8 @@ export default function App() {
     setTraceSelection(DEFAULT_TRACE_SELECTION);
     invalidateShapley();
     setShapleySelection(DEFAULT_SHAPLEY_SELECTION);
+    invalidateBottleneck();
+    setBottleneckSelection(DEFAULT_BOTTLENECK_SELECTION);
     if (nextOptions) setOptions(nextOptions);
     if (immediateSave) {
       setStatus('正在导入…');
@@ -750,6 +773,82 @@ export default function App() {
     });
   }, [nodes]);
 
+  const runBottleneck = useCallback(async () => {
+    if (!bottleneckSelection.targetNodeId) return;
+    setBottleneckRunning(true);
+    setBottleneckStatus('正在服务端内存中分析必经链路（不保存图）…');
+    try {
+      // 直接提交当前画布：分析只在服务端内存中进行，不触发任何持久化。
+      const { analysis } = await api.bottleneckAnalysis({
+        graph: graphToDocument(documentName, nodes, edges),
+        targetNodeId: bottleneckSelection.targetNodeId
+      });
+      setBottleneckResult(analysis);
+      setBottleneckActiveKey(null);
+      setBottleneckStatus(analysis.message);
+    } catch (error) {
+      setBottleneckResult(null);
+      setBottleneckStatus(`分析失败：${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setBottleneckRunning(false);
+    }
+  }, [documentName, edges, nodes, bottleneckSelection.targetNodeId]);
+
+  // 目标变化即清空已展示的分析结果与高亮（图编辑由 clearAnalysis 负责）。
+  const handleBottleneckSelectionChange = useCallback(
+    (patch: Partial<BottleneckSelection>) => {
+      setBottleneckSelection((current) => ({ ...current, ...patch }));
+      invalidateBottleneck();
+    },
+    [invalidateBottleneck]
+  );
+
+  // 目标观点被删除或改类型后，清掉失效的分析选择。
+  useEffect(() => {
+    setBottleneckSelection((current) => {
+      const targetExists =
+        !current.targetNodeId ||
+        nodes.some((node) => node.id === current.targetNodeId && node.data.kind === 'claim');
+      if (targetExists) return current;
+      return { targetNodeId: '' };
+    });
+  }, [nodes]);
+
+  // 当前要在画布上高亮的瓶颈（分析结果中 activeKey 对应的一项）。
+  const activeBottleneck: BottleneckItem | null = useMemo(() => {
+    if (!bottleneckResult || !bottleneckActiveKey) return null;
+    return (
+      bottleneckResult.bottlenecks.find((item) => `${item.kind}:${item.id}` === bottleneckActiveKey) ?? null
+    );
+  }, [bottleneckResult, bottleneckActiveKey]);
+
+  // 点击瓶颈条目 → 在画布上高亮瓶颈、目标与覆盖证据（纯视图标记，不影响图数据与回放着色）。
+  useEffect(() => {
+    setNodes((current) => {
+      const covered = new Set(activeBottleneck?.coveredEvidenceIds ?? []);
+      const focusId = activeBottleneck?.kind === 'node' ? activeBottleneck.id : null;
+      const targetId = activeBottleneck ? (bottleneckResult?.targetNodeId ?? null) : null;
+      const marks = (nodeId: string) => ({
+        bottleneckFocus: nodeId === focusId,
+        bottleneckTarget: nodeId === targetId,
+        bottleneckCovered: covered.has(nodeId)
+      });
+      if (
+        current.every((node) => {
+          const next = marks(node.id);
+          return (
+            Boolean(node.data.bottleneckFocus) === next.bottleneckFocus &&
+            Boolean(node.data.bottleneckTarget) === next.bottleneckTarget &&
+            Boolean(node.data.bottleneckCovered) === next.bottleneckCovered
+          );
+        })
+      ) {
+        return current;
+      }
+      return current.map((node) => ({ ...node, data: { ...node.data, ...marks(node.id) } }));
+    });
+  }, [activeBottleneck, bottleneckResult, setNodes]);
+
   // 点击瀑布条 → 在画布上高亮对应证据节点（纯视图标记，不影响图数据与回放着色）。
   useEffect(() => {
     setNodes((current) => {
@@ -763,14 +862,18 @@ export default function App() {
     });
   }, [shapleyActiveId, setNodes]);
 
-  // 追踪高亮（优先）/负反馈环高亮 / 无高亮：由最近一次分析结果统一驱动，保证连线样式幂等。
+  // 瓶颈连线高亮（优先）/ 追踪高亮 / 负反馈环高亮 / 无高亮：由最近一次分析结果统一驱动，保证连线样式幂等。
   const cycleEdgeIds = useMemo(
     () => new Set((result?.cycles ?? []).flatMap((cycle) => cycle.edgeIds)),
     [result]
   );
   useEffect(() => {
+    const activeBottleneckEdgeId = activeBottleneck?.kind === 'edge' ? activeBottleneck.id : null;
     setEdges((current) =>
       current.map((edge) => {
+        if (activeBottleneckEdgeId && edge.id === activeBottleneckEdgeId) {
+          return decorateEdge(edge, 'bottleneck-active');
+        }
         if (activeTracePath) {
           const stepIndex = activeTracePath.edgeIds.indexOf(edge.id);
           if (stepIndex >= 0) {
@@ -783,7 +886,7 @@ export default function App() {
       })
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTracePath, result, cycleEdgeIds]);
+  }, [activeBottleneck, activeTracePath, result, cycleEdgeIds]);
 
   // 节点上的追踪标记（起点/目标/途经）；不动可信度着色，回放与追踪可以同时可见。
   useEffect(() => {
@@ -1027,6 +1130,17 @@ export default function App() {
               setShapleyActiveId((current) => (current === nodeId ? null : nodeId)),
             onRun: runShapley,
             onClose: invalidateShapley
+          }}
+          bottleneck={{
+            selection: bottleneckSelection,
+            onSelectionChange: handleBottleneckSelectionChange,
+            result: bottleneckResult,
+            running: bottleneckRunning,
+            status: bottleneckStatus,
+            activeKey: bottleneckActiveKey,
+            onToggle: (key) => setBottleneckActiveKey((current) => (current === key ? null : key)),
+            onRun: runBottleneck,
+            onClose: invalidateBottleneck
           }}
         />
       </main>
